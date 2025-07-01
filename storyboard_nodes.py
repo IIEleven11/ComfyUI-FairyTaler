@@ -22,6 +22,15 @@ class SceneParser:
                 }),
                 "debug": (["enable", "disable"],),
             },
+            "optional": {
+                "scene_constants": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "e.g., 1 girl around 25 years old, homeless looking, at a cabin in the woods, gloomy and country aesthetic"
+                }),
+                "constants_position": (["beginning", "end", "both"],),
+                "constants_format": (["natural", "tags", "descriptive"],),
+            },
         }
 
     RETURN_TYPES = ("STRING", "STRING", "STRING")
@@ -29,21 +38,25 @@ class SceneParser:
     FUNCTION = "parse_scenes"
     CATEGORY = "FairyTaler/Storyboard"
 
-    def parse_scenes(self, ollama_text, debug):
+    def parse_scenes(self, ollama_text, debug, scene_constants="", constants_position="beginning", constants_format="natural"):
         if debug == "enable":
             print(f"[SceneParser] Input text:\n{ollama_text}")
-        
+            if scene_constants:
+                print(f"[SceneParser] Scene constants: {scene_constants}")
+                print(f"[SceneParser] Constants position: {constants_position}")
+                print(f"[SceneParser] Constants format: {constants_format}")
+
         # Parse scenes using regex to find Scene 1:, Scene 2:, Scene 3: patterns
         scene_pattern = r"Scene\s*(\d+):\s*(.*?)(?=Scene\s*\d+:|$)"
         matches = re.findall(scene_pattern, ollama_text, re.DOTALL | re.IGNORECASE)
-        
+
         scenes = ["", "", ""]
-        
+
         for match in matches:
             scene_num = int(match[0]) - 1  # Convert to 0-based index
             if 0 <= scene_num < 3:
                 scenes[scene_num] = match[1].strip()
-        
+
         # Fallback: if regex doesn't work, try splitting by "Scene" keyword
         if not any(scenes):
             parts = re.split(r'Scene\s*\d+:', ollama_text, flags=re.IGNORECASE)
@@ -51,19 +64,66 @@ class SceneParser:
                 for i, part in enumerate(parts[1:4]):  # Take up to 3 scenes
                     if i < 3:
                         scenes[i] = part.strip()
-        
+
         # Final fallback: split by paragraphs if still empty
         if not any(scenes):
             paragraphs = [p.strip() for p in ollama_text.split('\n\n') if p.strip()]
             for i, paragraph in enumerate(paragraphs[:3]):
                 scenes[i] = paragraph
-        
+
+        # Apply scene constants if provided
+        if scene_constants and scene_constants.strip():
+            scenes = self._apply_scene_constants(scenes, scene_constants.strip(), constants_position, constants_format, debug)
+
         if debug == "enable":
-            print(f"[SceneParser] Parsed scenes:")
+            print(f"[SceneParser] Final scenes with constants applied:")
             for i, scene in enumerate(scenes):
-                print(f"Scene {i+1}: {scene[:100]}...")
-        
+                print(f"Scene {i+1}: {scene[:150]}...")
+
         return (scenes[0], scenes[1], scenes[2])
+
+    def _apply_scene_constants(self, scenes, constants, position, format_type, debug):
+        """Apply scene constants to each scene based on the specified format and position"""
+
+        if debug == "enable":
+            print(f"[SceneParser] Applying constants in {format_type} format at {position}")
+
+        # Format the constants based on the selected format
+        if format_type == "tags":
+            # Format as comma-separated tags
+            formatted_constants = constants
+        elif format_type == "descriptive":
+            # Format as a descriptive sentence
+            if not constants.endswith('.'):
+                formatted_constants = constants + "."
+            else:
+                formatted_constants = constants
+        else:  # natural
+            # Use as-is but ensure proper punctuation
+            formatted_constants = constants
+            if not constants.endswith(('.', ',', ';')):
+                formatted_constants = constants + ","
+
+        # Apply constants to each scene
+        enhanced_scenes = []
+        for i, scene in enumerate(scenes):
+            if not scene:  # Skip empty scenes
+                enhanced_scenes.append(scene)
+                continue
+
+            if position == "beginning":
+                enhanced_scene = f"{formatted_constants} {scene}"
+            elif position == "end":
+                enhanced_scene = f"{scene} {formatted_constants}"
+            else:  # both
+                enhanced_scene = f"{formatted_constants} {scene} {formatted_constants}"
+
+            enhanced_scenes.append(enhanced_scene)
+
+            if debug == "enable":
+                print(f"[SceneParser] Enhanced scene {i+1}: {enhanced_scene[:100]}...")
+
+        return enhanced_scenes
 
 
 class SceneToConditioning:
@@ -385,6 +445,13 @@ class FairyTalerStoryboard:
                 "image_1": ("IMAGE",),
                 "image_2": ("IMAGE",),
                 "image_3": ("IMAGE",),
+                "scene_constants": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "e.g., 1 girl around 25 years old, homeless looking, at a cabin in the woods, gloomy and country aesthetic"
+                }),
+                "constants_position": (["beginning", "end", "both"],),
+                "constants_format": (["natural", "tags", "descriptive"],),
             },
         }
 
@@ -393,7 +460,7 @@ class FairyTalerStoryboard:
     FUNCTION = "create_storyboard"
     CATEGORY = "FairyTaler/Storyboard"
 
-    def create_storyboard(self, ollama_text, layout, spacing, background_color, add_labels, debug, image_1=None, image_2=None, image_3=None):
+    def create_storyboard(self, ollama_text, layout, spacing, background_color, add_labels, debug, image_1=None, image_2=None, image_3=None, scene_constants="", constants_position="beginning", constants_format="natural"):
         if debug == "enable":
             print(f"[FairyTalerStoryboard] Creating complete storyboard from Ollama text")
 
@@ -422,8 +489,12 @@ class FairyTalerStoryboard:
             for i, paragraph in enumerate(paragraphs[:3]):
                 scenes[i] = paragraph
 
+        # Apply scene constants if provided (reuse the logic from SceneParser)
+        if scene_constants and scene_constants.strip():
+            scenes = self._apply_scene_constants(scenes, scene_constants.strip(), constants_position, constants_format, debug)
+
         if debug == "enable":
-            print(f"[FairyTalerStoryboard] Parsed scenes:")
+            print(f"[FairyTalerStoryboard] Final scenes with constants applied:")
             for i, scene in enumerate(scenes):
                 print(f"Scene {i+1}: {scene[:100]}...")
 
@@ -538,6 +609,49 @@ class FairyTalerStoryboard:
             storyboard_tensor = torch.from_numpy(storyboard_array).unsqueeze(0)
 
         return (scenes[0], scenes[1], scenes[2], storyboard_tensor)
+
+    def _apply_scene_constants(self, scenes, constants, position, format_type, debug):
+        """Apply scene constants to each scene based on the specified format and position"""
+
+        if debug == "enable":
+            print(f"[FairyTalerStoryboard] Applying constants in {format_type} format at {position}")
+
+        # Format the constants based on the selected format
+        if format_type == "tags":
+            # Format as comma-separated tags
+            formatted_constants = constants
+        elif format_type == "descriptive":
+            # Format as a descriptive sentence
+            if not constants.endswith('.'):
+                formatted_constants = constants + "."
+            else:
+                formatted_constants = constants
+        else:  # natural
+            # Use as-is but ensure proper punctuation
+            formatted_constants = constants
+            if not constants.endswith(('.', ',', ';')):
+                formatted_constants = constants + ","
+
+        # Apply constants to each scene
+        enhanced_scenes = []
+        for i, scene in enumerate(scenes):
+            if not scene:  # Skip empty scenes
+                enhanced_scenes.append(scene)
+                continue
+
+            if position == "beginning":
+                enhanced_scene = f"{formatted_constants} {scene}"
+            elif position == "end":
+                enhanced_scene = f"{scene} {formatted_constants}"
+            else:  # both
+                enhanced_scene = f"{formatted_constants} {scene} {formatted_constants}"
+
+            enhanced_scenes.append(enhanced_scene)
+
+            if debug == "enable":
+                print(f"[FairyTalerStoryboard] Enhanced scene {i+1}: {enhanced_scene[:100]}...")
+
+        return enhanced_scenes
 
 
 # Node mappings for ComfyUI

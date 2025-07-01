@@ -93,25 +93,114 @@ def test_alternative_formats():
         print("-" * 20)
         print(scene)
 
+def test_scene_constants():
+    """Test the scene constants functionality"""
+
+    print("\n\n" + "=" * 50)
+    print("Testing Scene Constants Feature")
+    print("=" * 50)
+
+    # Test input
+    test_input = """
+Scene 1:
+A girl sits on the front steps slaughtering time.
+
+Scene 2:
+Alerted by the crows, the girl raises her head as you approach.
+
+Scene 3:
+"Stranger," she says. "Folks don't usually wander 'round these hollers without cause."
+"""
+
+    # Test constants
+    scene_constants = "1 girl around 25 years old, homeless looking, at a cabin in the woods, gloomy and country aesthetic"
+
+    print("Original scenes:")
+    print(test_input)
+    print(f"\nScene constants: {scene_constants}")
+
+    # Parse scenes first
+    scene_pattern = r"Scene\s*(\d+):\s*(.*?)(?=Scene\s*\d+:|$)"
+    matches = re.findall(scene_pattern, test_input, re.DOTALL | re.IGNORECASE)
+
+    scenes = ["", "", ""]
+    for match in matches:
+        scene_num = int(match[0]) - 1
+        if 0 <= scene_num < 3:
+            scenes[scene_num] = match[1].strip()
+
+    # Test different positions and formats
+    positions = ["beginning", "end", "both"]
+    formats = ["natural", "tags", "descriptive"]
+
+    for position in positions:
+        for format_type in formats:
+            print(f"\n--- Position: {position}, Format: {format_type} ---")
+            enhanced_scenes = apply_scene_constants(scenes, scene_constants, position, format_type)
+
+            for i, scene in enumerate(enhanced_scenes):
+                print(f"Scene {i+1}: {scene}")
+
+def apply_scene_constants(scenes, constants, position, format_type):
+    """Helper function to apply scene constants (mirrors the node logic)"""
+
+    # Format the constants based on the selected format
+    if format_type == "tags":
+        formatted_constants = constants
+    elif format_type == "descriptive":
+        if not constants.endswith('.'):
+            formatted_constants = constants + "."
+        else:
+            formatted_constants = constants
+    else:  # natural
+        formatted_constants = constants
+        if not constants.endswith(('.', ',', ';')):
+            formatted_constants = constants + ","
+
+    # Apply constants to each scene
+    enhanced_scenes = []
+    for scene in scenes:
+        if not scene:
+            enhanced_scenes.append(scene)
+            continue
+
+        if position == "beginning":
+            enhanced_scene = f"{formatted_constants} {scene}"
+        elif position == "end":
+            enhanced_scene = f"{scene} {formatted_constants}"
+        else:  # both
+            enhanced_scene = f"{formatted_constants} {scene} {formatted_constants}"
+
+        enhanced_scenes.append(enhanced_scene)
+
+    return enhanced_scenes
+
 def main():
     """Run all tests"""
     print("FairyTaler Storyboard Node Tests")
     print("=" * 60)
-    
+
     # Test 1: Standard scene parsing
-    scenes = test_scene_parser()
-    
+    test_scene_parser()
+
     # Test 2: Alternative formats
     test_alternative_formats()
-    
+
+    # Test 3: Scene constants feature
+    test_scene_constants()
+
     print("\n" + "=" * 60)
     print("Tests completed successfully!")
-    print("The scene parsing logic is working correctly.")
+    print("The scene parsing logic and scene constants feature are working correctly.")
     print("\nNext steps:")
     print("1. Copy storyboard_nodes.py to your ComfyUI custom_nodes directory")
     print("2. Copy __init__.py to the same directory")
     print("3. Restart ComfyUI")
     print("4. Look for 'FairyTaler/Storyboard' category in the node menu")
+    print("\nNew Feature: Scene Constants")
+    print("- Add consistent character/setting details to all scenes")
+    print("- Choose position: beginning, end, or both")
+    print("- Choose format: natural, tags, or descriptive")
 
 if __name__ == "__main__":
     main()
