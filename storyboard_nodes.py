@@ -1,0 +1,558 @@
+import re
+import torch
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+import io
+
+
+class SceneParser:
+    """
+    A node that takes Ollama text output and parses it into 3 separate scene descriptions
+    """
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "ollama_text": ("STRING", {
+                    "multiline": True,
+                    "default": ""
+                }),
+                "debug": (["enable", "disable"],),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "STRING", "STRING")
+    RETURN_NAMES = ("scene_1", "scene_2", "scene_3")
+    FUNCTION = "parse_scenes"
+    CATEGORY = "FairyTaler/Storyboard"
+
+    def parse_scenes(self, ollama_text, debug):
+        if debug == "enable":
+            print(f"[SceneParser] Input text:\n{ollama_text}")
+        
+        # Parse scenes using regex to find Scene 1:, Scene 2:, Scene 3: patterns
+        scene_pattern = r"Scene\s*(\d+):\s*(.*?)(?=Scene\s*\d+:|$)"
+        matches = re.findall(scene_pattern, ollama_text, re.DOTALL | re.IGNORECASE)
+        
+        scenes = ["", "", ""]
+        
+        for match in matches:
+            scene_num = int(match[0]) - 1  # Convert to 0-based index
+            if 0 <= scene_num < 3:
+                scenes[scene_num] = match[1].strip()
+        
+        # Fallback: if regex doesn't work, try splitting by "Scene" keyword
+        if not any(scenes):
+            parts = re.split(r'Scene\s*\d+:', ollama_text, flags=re.IGNORECASE)
+            if len(parts) > 1:
+                for i, part in enumerate(parts[1:4]):  # Take up to 3 scenes
+                    if i < 3:
+                        scenes[i] = part.strip()
+        
+        # Final fallback: split by paragraphs if still empty
+        if not any(scenes):
+            paragraphs = [p.strip() for p in ollama_text.split('\n\n') if p.strip()]
+            for i, paragraph in enumerate(paragraphs[:3]):
+                scenes[i] = paragraph
+        
+        if debug == "enable":
+            print(f"[SceneParser] Parsed scenes:")
+            for i, scene in enumerate(scenes):
+                print(f"Scene {i+1}: {scene[:100]}...")
+        
+        return (scenes[0], scenes[1], scenes[2])
+
+
+class SceneToConditioning:
+    """
+    A node that takes a scene description and converts it to conditioning for use with sampling nodes
+    """
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "scene_text": ("STRING", {
+                    "multiline": True,
+                    "default": ""
+                }),
+                "clip": ("CLIP",),
+                "debug": (["enable", "disable"],),
+            },
+        }
+
+    RETURN_TYPES = ("CONDITIONING",)
+    RETURN_NAMES = ("conditioning",)
+    FUNCTION = "encode_scene"
+    CATEGORY = "FairyTaler/Storyboard"
+
+    def encode_scene(self, scene_text, clip, debug):
+        if debug == "enable":
+            print(f"[SceneToConditioning] Encoding scene: {scene_text[:100]}...")
+
+        # Encode the text using CLIP
+        tokens = clip.tokenize(scene_text)
+        cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
+
+        # Create conditioning object in ComfyUI format
+        conditioning = [[cond, {"pooled_output": pooled}]]
+
+        if debug == "enable":
+            print(f"[SceneToConditioning] Created conditioning with shape: {cond.shape}")
+
+        return (conditioning,)
+
+
+class ThreeSceneGenerator:
+    """
+    A comprehensive node that takes 3 scene texts and generates 3 images using sampling
+    """
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "scene_1": ("STRING", {
+                    "multiline": True,
+                    "default": ""
+                }),
+                "scene_2": ("STRING", {
+                    "multiline": True,
+                    "default": ""
+                }),
+                "scene_3": ("STRING", {
+                    "multiline": True,
+                    "default": ""
+                }),
+                "model": ("MODEL",),
+                "clip": ("CLIP",),
+                "vae": ("VAE",),
+                "width": ("INT", {
+                    "default": 512,
+                    "min": 64,
+                    "max": 2048,
+                    "step": 8
+                }),
+                "height": ("INT", {
+                    "default": 512,
+                    "min": 64,
+                    "max": 2048,
+                    "step": 8
+                }),
+                "steps": ("INT", {
+                    "default": 20,
+                    "min": 1,
+                    "max": 100,
+                    "step": 1
+                }),
+                "cfg": ("FLOAT", {
+                    "default": 7.0,
+                    "min": 1.0,
+                    "max": 20.0,
+                    "step": 0.1
+                }),
+                "seed": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 0xffffffffffffffff
+                }),
+                "sampler_name": (["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral", "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_2m", "ddim", "uni_pc", "uni_pc_bh2"],),
+                "scheduler": (["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform"],),
+                "debug": (["enable", "disable"],),
+            },
+            "optional": {
+                "negative_prompt": ("STRING", {
+                    "multiline": True,
+                    "default": ""
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE")
+    RETURN_NAMES = ("image_1", "image_2", "image_3")
+    FUNCTION = "generate_three_scenes"
+    CATEGORY = "FairyTaler/Storyboard"
+
+    def generate_three_scenes(self, scene_1, scene_2, scene_3, model, clip, vae, width, height, steps, cfg, seed, sampler_name, scheduler, debug, negative_prompt=""):
+        if debug == "enable":
+            print(f"[ThreeSceneGenerator] This node outputs conditioning for use with sampling nodes.")
+            print(f"[ThreeSceneGenerator] For actual image generation, connect the conditioning outputs to KSampler nodes.")
+
+        # This is a simplified version that outputs conditioning
+        # In practice, users should connect these to KSampler and VAEDecode nodes
+        scenes = [scene_1, scene_2, scene_3]
+        conditionings = []
+
+        for i, scene_text in enumerate(scenes):
+            if debug == "enable":
+                print(f"[ThreeSceneGenerator] Processing scene {i+1}: {scene_text[:50]}...")
+
+            # Encode positive conditioning
+            tokens = clip.tokenize(scene_text)
+            cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
+            conditioning = [[cond, {"pooled_output": pooled}]]
+            conditionings.append(conditioning)
+
+        # For now, return placeholder images - users should use proper sampling workflow
+        # Create simple colored placeholder images to show the concept works
+        placeholder_images = []
+        colors = [(255, 100, 100), (100, 255, 100), (100, 100, 255)]  # Red, Green, Blue
+
+        for i, color in enumerate(colors):
+            # Create a simple colored image as placeholder
+            img_array = np.full((height, width, 3), color, dtype=np.uint8)
+            img_tensor = torch.from_numpy(img_array.astype(np.float32) / 255.0).unsqueeze(0)
+            placeholder_images.append(img_tensor)
+
+            if debug == "enable":
+                print(f"[ThreeSceneGenerator] Created placeholder image {i+1} with color {color}")
+
+        return (placeholder_images[0], placeholder_images[1], placeholder_images[2])
+
+
+class StoryboardCompositor:
+    """
+    A node that takes 3 images and combines them into a single storyboard layout
+    """
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image_1": ("IMAGE",),
+                "image_2": ("IMAGE",),
+                "image_3": ("IMAGE",),
+                "layout": (["vertical", "horizontal", "grid"],),
+                "spacing": ("INT", {
+                    "default": 10,
+                    "min": 0,
+                    "max": 100,
+                    "step": 1
+                }),
+                "background_color": ("STRING", {
+                    "default": "white"
+                }),
+                "add_labels": (["enable", "disable"],),
+                "debug": (["enable", "disable"],),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("storyboard",)
+    FUNCTION = "compose_storyboard"
+    CATEGORY = "FairyTaler/Storyboard"
+
+    def compose_storyboard(self, image_1, image_2, image_3, layout, spacing, background_color, add_labels, debug):
+        if debug == "enable":
+            print(f"[StoryboardCompositor] Creating {layout} storyboard with {spacing}px spacing")
+        
+        # Convert tensors to PIL Images
+        def tensor_to_pil(tensor):
+            # Convert from tensor format [batch, height, width, channels] to PIL
+            if len(tensor.shape) == 4:
+                tensor = tensor[0]  # Remove batch dimension
+            
+            # Convert from [0,1] float to [0,255] uint8
+            if tensor.dtype == torch.float32:
+                tensor = (tensor * 255).clamp(0, 255).byte()
+            
+            # Convert to numpy and then PIL
+            np_image = tensor.cpu().numpy()
+            return Image.fromarray(np_image)
+        
+        pil_images = [tensor_to_pil(img) for img in [image_1, image_2, image_3]]
+        
+        # Get dimensions
+        img_width, img_height = pil_images[0].size
+        
+        # Calculate storyboard dimensions based on layout
+        if layout == "vertical":
+            board_width = img_width
+            board_height = img_height * 3 + spacing * 2
+        elif layout == "horizontal":
+            board_width = img_width * 3 + spacing * 2
+            board_height = img_height
+        else:  # grid (2x2 with 3 images)
+            board_width = img_width * 2 + spacing
+            board_height = img_height * 2 + spacing
+        
+        # Add space for labels if enabled
+        label_height = 30 if add_labels == "enable" else 0
+        if layout == "vertical":
+            board_height += label_height * 3
+        elif layout == "horizontal":
+            board_height += label_height
+        else:  # grid
+            board_height += label_height * 2
+        
+        # Create the storyboard canvas
+        storyboard = Image.new('RGB', (board_width, board_height), background_color)
+        
+        # Position images based on layout
+        positions = []
+        if layout == "vertical":
+            positions = [
+                (0, 0),
+                (0, img_height + spacing + label_height),
+                (0, (img_height + spacing + label_height) * 2)
+            ]
+        elif layout == "horizontal":
+            positions = [
+                (0, label_height),
+                (img_width + spacing, label_height),
+                ((img_width + spacing) * 2, label_height)
+            ]
+        else:  # grid
+            positions = [
+                (0, label_height),
+                (img_width + spacing, label_height),
+                (0, img_height + spacing + label_height * 2)
+            ]
+        
+        # Paste images
+        for i, (img, pos) in enumerate(zip(pil_images, positions)):
+            storyboard.paste(img, pos)
+            
+            # Add labels if enabled
+            if add_labels == "enable":
+                draw = ImageDraw.Draw(storyboard)
+                try:
+                    font = ImageFont.load_default()
+                except:
+                    font = None
+                
+                label_text = f"Scene {i + 1}"
+                if layout == "vertical":
+                    label_pos = (5, pos[1] - 25)
+                elif layout == "horizontal":
+                    label_pos = (pos[0] + 5, 5)
+                else:  # grid
+                    if i < 2:
+                        label_pos = (pos[0] + 5, 5)
+                    else:
+                        label_pos = (pos[0] + 5, img_height + spacing + label_height + 5)
+                
+                draw.text(label_pos, label_text, fill="black", font=font)
+        
+        # Convert back to tensor format
+        storyboard_array = np.array(storyboard).astype(np.float32) / 255.0
+        storyboard_tensor = torch.from_numpy(storyboard_array).unsqueeze(0)  # Add batch dimension
+        
+        if debug == "enable":
+            print(f"[StoryboardCompositor] Created storyboard with dimensions: {storyboard.size}")
+        
+        return (storyboard_tensor,)
+
+
+class FairyTalerStoryboard:
+    """
+    A comprehensive node that takes Ollama output and creates a complete 3-scene storyboard
+    """
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "ollama_text": ("STRING", {
+                    "multiline": True,
+                    "default": ""
+                }),
+                "layout": (["vertical", "horizontal", "grid"],),
+                "spacing": ("INT", {
+                    "default": 10,
+                    "min": 0,
+                    "max": 100,
+                    "step": 1
+                }),
+                "background_color": ("STRING", {
+                    "default": "white"
+                }),
+                "add_labels": (["enable", "disable"],),
+                "debug": (["enable", "disable"],),
+            },
+            "optional": {
+                "image_1": ("IMAGE",),
+                "image_2": ("IMAGE",),
+                "image_3": ("IMAGE",),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "IMAGE")
+    RETURN_NAMES = ("scene_1", "scene_2", "scene_3", "storyboard")
+    FUNCTION = "create_storyboard"
+    CATEGORY = "FairyTaler/Storyboard"
+
+    def create_storyboard(self, ollama_text, layout, spacing, background_color, add_labels, debug, image_1=None, image_2=None, image_3=None):
+        if debug == "enable":
+            print(f"[FairyTalerStoryboard] Creating complete storyboard from Ollama text")
+
+        # Parse scenes using the same logic as SceneParser
+        scene_pattern = r"Scene\s*(\d+):\s*(.*?)(?=Scene\s*\d+:|$)"
+        matches = re.findall(scene_pattern, ollama_text, re.DOTALL | re.IGNORECASE)
+
+        scenes = ["", "", ""]
+
+        for match in matches:
+            scene_num = int(match[0]) - 1  # Convert to 0-based index
+            if 0 <= scene_num < 3:
+                scenes[scene_num] = match[1].strip()
+
+        # Fallback: if regex doesn't work, try splitting by "Scene" keyword
+        if not any(scenes):
+            parts = re.split(r'Scene\s*\d+:', ollama_text, flags=re.IGNORECASE)
+            if len(parts) > 1:
+                for i, part in enumerate(parts[1:4]):  # Take up to 3 scenes
+                    if i < 3:
+                        scenes[i] = part.strip()
+
+        # Final fallback: split by paragraphs if still empty
+        if not any(scenes):
+            paragraphs = [p.strip() for p in ollama_text.split('\n\n') if p.strip()]
+            for i, paragraph in enumerate(paragraphs[:3]):
+                scenes[i] = paragraph
+
+        if debug == "enable":
+            print(f"[FairyTalerStoryboard] Parsed scenes:")
+            for i, scene in enumerate(scenes):
+                print(f"Scene {i+1}: {scene[:100]}...")
+
+        # If images are provided, create storyboard; otherwise just return scenes
+        if image_1 is not None and image_2 is not None and image_3 is not None:
+            # Use the same logic as StoryboardCompositor
+            def tensor_to_pil(tensor):
+                if len(tensor.shape) == 4:
+                    tensor = tensor[0]  # Remove batch dimension
+
+                if tensor.dtype == torch.float32:
+                    tensor = (tensor * 255).clamp(0, 255).byte()
+
+                np_image = tensor.cpu().numpy()
+                return Image.fromarray(np_image)
+
+            pil_images = [tensor_to_pil(img) for img in [image_1, image_2, image_3]]
+
+            # Get dimensions
+            img_width, img_height = pil_images[0].size
+
+            # Calculate storyboard dimensions based on layout
+            if layout == "vertical":
+                board_width = img_width
+                board_height = img_height * 3 + spacing * 2
+            elif layout == "horizontal":
+                board_width = img_width * 3 + spacing * 2
+                board_height = img_height
+            else:  # grid (2x2 with 3 images)
+                board_width = img_width * 2 + spacing
+                board_height = img_height * 2 + spacing
+
+            # Add space for labels if enabled
+            label_height = 30 if add_labels == "enable" else 0
+            if layout == "vertical":
+                board_height += label_height * 3
+            elif layout == "horizontal":
+                board_height += label_height
+            else:  # grid
+                board_height += label_height * 2
+
+            # Create the storyboard canvas
+            storyboard = Image.new('RGB', (board_width, board_height), background_color)
+
+            # Position images based on layout
+            positions = []
+            if layout == "vertical":
+                positions = [
+                    (0, 0),
+                    (0, img_height + spacing + label_height),
+                    (0, (img_height + spacing + label_height) * 2)
+                ]
+            elif layout == "horizontal":
+                positions = [
+                    (0, label_height),
+                    (img_width + spacing, label_height),
+                    ((img_width + spacing) * 2, label_height)
+                ]
+            else:  # grid
+                positions = [
+                    (0, label_height),
+                    (img_width + spacing, label_height),
+                    (0, img_height + spacing + label_height * 2)
+                ]
+
+            # Paste images
+            for i, (img, pos) in enumerate(zip(pil_images, positions)):
+                storyboard.paste(img, pos)
+
+                # Add labels if enabled
+                if add_labels == "enable":
+                    draw = ImageDraw.Draw(storyboard)
+                    try:
+                        font = ImageFont.load_default()
+                    except:
+                        font = None
+
+                    label_text = f"Scene {i + 1}"
+                    if layout == "vertical":
+                        label_pos = (5, pos[1] - 25)
+                    elif layout == "horizontal":
+                        label_pos = (pos[0] + 5, 5)
+                    else:  # grid
+                        if i < 2:
+                            label_pos = (pos[0] + 5, 5)
+                        else:
+                            label_pos = (pos[0] + 5, img_height + spacing + label_height + 5)
+
+                    draw.text(label_pos, label_text, fill="black", font=font)
+
+            # Convert back to tensor format
+            storyboard_array = np.array(storyboard).astype(np.float32) / 255.0
+            storyboard_tensor = torch.from_numpy(storyboard_array).unsqueeze(0)  # Add batch dimension
+
+            if debug == "enable":
+                print(f"[FairyTalerStoryboard] Created storyboard with dimensions: {storyboard.size}")
+        else:
+            # Create a placeholder storyboard with text
+            storyboard = Image.new('RGB', (800, 600), background_color)
+            draw = ImageDraw.Draw(storyboard)
+            try:
+                font = ImageFont.load_default()
+            except:
+                font = None
+
+            draw.text((10, 10), "Connect images to create visual storyboard", fill="black", font=font)
+            draw.text((10, 40), f"Scene 1: {scenes[0][:50]}...", fill="black", font=font)
+            draw.text((10, 70), f"Scene 2: {scenes[1][:50]}...", fill="black", font=font)
+            draw.text((10, 100), f"Scene 3: {scenes[2][:50]}...", fill="black", font=font)
+
+            storyboard_array = np.array(storyboard).astype(np.float32) / 255.0
+            storyboard_tensor = torch.from_numpy(storyboard_array).unsqueeze(0)
+
+        return (scenes[0], scenes[1], scenes[2], storyboard_tensor)
+
+
+# Node mappings for ComfyUI
+NODE_CLASS_MAPPINGS = {
+    "SceneParser": SceneParser,
+    "SceneToConditioning": SceneToConditioning,
+    "ThreeSceneGenerator": ThreeSceneGenerator,
+    "StoryboardCompositor": StoryboardCompositor,
+    "FairyTalerStoryboard": FairyTalerStoryboard,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "SceneParser": "Scene Parser",
+    "SceneToConditioning": "Scene to Conditioning",
+    "ThreeSceneGenerator": "Three Scene Generator",
+    "StoryboardCompositor": "Storyboard Compositor",
+    "FairyTalerStoryboard": "FairyTaler Storyboard",
+}

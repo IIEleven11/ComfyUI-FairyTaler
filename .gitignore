@@ -1,0 +1,39 @@
+ComfyUI-FairyTaler/.venv
+# Byte-code files
+*.pyc
+__pycache__/
+*.so
+
+# Virtual environment
+.venv/
+env/
+venv/
+.env/
+
+# Editor/IDE specific files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs and databases
+*.log
+*.sqlite3
+db.sqlite3
+
+# Test files
+.pytest_cache/
+.coverage
+
+# Distribution and packaging
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Uploaded media files (if applicable, e.g., Django projects)
+media/
