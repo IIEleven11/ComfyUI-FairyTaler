@@ -22,6 +22,7 @@ This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama
 
 **Outputs**:
 - `scene_1`, `scene_2`, `scene_3` (STRING): Individual scene descriptions with constants applied
+- `extracted_constants` (STRING): Constants automatically extracted from LLM output
 
 ### 2. SceneToConditioning
 **Purpose**: Converts scene text to CLIP conditioning for use with sampling nodes
@@ -74,10 +75,36 @@ This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama
 **Outputs**:
 - `scene_1`, `scene_2`, `scene_3` (STRING): Parsed scene descriptions with constants
 - `storyboard` (IMAGE): Combined storyboard (visual if images provided, text-based if not)
+- `extracted_constants` (STRING): Constants automatically extracted from LLM output
 
 ## Scene Constants Feature
 
 The **Scene Constants** feature ensures character and setting consistency across all three scenes by automatically adding specified details to each scene description.
+
+### 🤖 Automatic Constant Extraction (NEW!)
+
+The nodes now automatically extract constants from LLM output! Simply ask your LLM to include constants in its response using any of these formats:
+
+**Supported Formats:**
+- `Constants: [your constants here]`
+- `Scene Constants: [your constants here]`
+- `Character Description: [your constants here]`
+- `For consistency across all scenes: [your constants here]`
+- Bullet points with `• Character:`, `• Setting:`, etc.
+- `Note: For consistency throughout all scenes, maintain: [your constants here]`
+
+**Example LLM Prompt:**
+```
+"Transform this roleplay text into 3 scenes for a storyboard. Also provide scene constants for character and setting consistency.
+
+Constants: 1 girl around 25 years old, homeless looking, at a cabin in the woods, gloomy and country aesthetic
+
+Scene 1: [scene description]
+Scene 2: [scene description]
+Scene 3: [scene description]"
+```
+
+### Manual Constants (Fallback)
 
 ### Example Usage:
 - **Scene Constants**: `"1 girl around 25 years old, homeless looking, at a cabin in the woods, gloomy and country aesthetic"`

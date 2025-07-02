@@ -33,8 +33,8 @@ class SceneParser:
             },
         }
 
-    RETURN_TYPES = ("STRING", "STRING", "STRING")
-    RETURN_NAMES = ("scene_1", "scene_2", "scene_3")
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("scene_1", "scene_2", "scene_3", "extracted_constants")
     FUNCTION = "parse_scenes"
     CATEGORY = "FairyTaler/Storyboard"
 
@@ -71,16 +71,24 @@ class SceneParser:
             for i, paragraph in enumerate(paragraphs[:3]):
                 scenes[i] = paragraph
 
-        # Apply scene constants if provided
-        if scene_constants and scene_constants.strip():
-            scenes = self._apply_scene_constants(scenes, scene_constants.strip(), constants_position, constants_format, debug)
+        # Extract constants from LLM output
+        extracted_constants = self._extract_constants_from_text(ollama_text, debug)
+
+        # Use extracted constants if no manual constants provided, otherwise use manual ones
+        final_constants = scene_constants.strip() if scene_constants and scene_constants.strip() else extracted_constants
+
+        # Apply scene constants if available
+        if final_constants:
+            scenes = self._apply_scene_constants(scenes, final_constants, constants_position, constants_format, debug)
 
         if debug == "enable":
+            print(f"[SceneParser] Extracted constants: {extracted_constants}")
+            print(f"[SceneParser] Final constants used: {final_constants}")
             print(f"[SceneParser] Final scenes with constants applied:")
             for i, scene in enumerate(scenes):
                 print(f"Scene {i+1}: {scene[:150]}...")
 
-        return (scenes[0], scenes[1], scenes[2])
+        return (scenes[0], scenes[1], scenes[2], extracted_constants)
 
     def _apply_scene_constants(self, scenes, constants, position, format_type, debug):
         """Apply scene constants to each scene based on the specified format and position"""
@@ -124,6 +132,89 @@ class SceneParser:
                 print(f"[SceneParser] Enhanced scene {i+1}: {enhanced_scene[:100]}...")
 
         return enhanced_scenes
+
+    def _extract_constants_from_text(self, text, debug):
+        """Extract suggested constants from LLM output using various patterns"""
+
+        if debug == "enable":
+            print(f"[SceneParser] Extracting constants from LLM text...")
+
+        # Patterns to look for constants in the LLM output
+        constant_patterns = [
+            # Direct patterns
+            r"Constants?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"Scene Constants?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"Character Constants?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"Setting Constants?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"Consistent Elements?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"Shared Details?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+
+            # Descriptive patterns
+            r"(?:For consistency|To maintain consistency|Consistent across all scenes?):\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"(?:Character|Setting|Style) (?:description|details?):\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"(?:Overall|General) (?:setting|character|aesthetic):\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+
+            # Bullet point patterns
+            r"[•\-\*]\s*(?:Character|Setting|Style|Constants?):\s*(.*?)(?:\n|\n\n|$)",
+
+            # Parenthetical patterns
+            r"\((?:Constants?|Consistent elements?|For all scenes?):\s*(.*?)\)",
+
+            # Note patterns
+            r"Note:\s*(?:.*?(?:constant|consistent|throughout|all scenes)).*?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+        ]
+
+        extracted_constants = ""
+
+        for pattern in constant_patterns:
+            matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
+            if matches:
+                # Take the first match and clean it up
+                constants = matches[0].strip()
+                # Remove extra whitespace and newlines
+                constants = re.sub(r'\s+', ' ', constants)
+                # Remove trailing punctuation that might interfere
+                constants = re.sub(r'[.!?]+$', '', constants)
+
+                if constants and len(constants) > 10:  # Ensure it's substantial
+                    extracted_constants = constants
+                    if debug == "enable":
+                        print(f"[SceneParser] Found constants with pattern: {pattern[:50]}...")
+                        print(f"[SceneParser] Extracted: {constants}")
+                    break
+
+        # Fallback: Look for character descriptions in the first scene
+        if not extracted_constants:
+            # Try to extract character/setting info from the first scene
+            scene_pattern = r"Scene\s*1:\s*(.*?)(?=Scene\s*2:|$)"
+            scene_match = re.search(scene_pattern, text, re.DOTALL | re.IGNORECASE)
+
+            if scene_match:
+                first_scene = scene_match.group(1).strip()
+                # Look for descriptive elements that could be constants
+                descriptive_patterns = [
+                    r"(\d+\s+(?:girl|boy|woman|man|person)[^.]*?(?:years?\s+old|looking|appearance)[^.]*?)",
+                    r"((?:at|in)\s+(?:a|the)\s+[^.]*?(?:cabin|house|building|location)[^.]*?)",
+                    r"([^.]*?(?:aesthetic|style|mood|atmosphere)[^.]*?)",
+                ]
+
+                potential_constants = []
+                for pattern in descriptive_patterns:
+                    matches = re.findall(pattern, first_scene, re.IGNORECASE)
+                    potential_constants.extend(matches)
+
+                if potential_constants:
+                    extracted_constants = ", ".join(potential_constants[:3])  # Take first 3 elements
+                    if debug == "enable":
+                        print(f"[SceneParser] Fallback extraction from first scene: {extracted_constants}")
+
+        if debug == "enable":
+            if extracted_constants:
+                print(f"[SceneParser] Successfully extracted constants: {extracted_constants}")
+            else:
+                print(f"[SceneParser] No constants found in LLM output")
+
+        return extracted_constants
 
 
 class SceneToConditioning:
@@ -455,8 +546,8 @@ class FairyTalerStoryboard:
             },
         }
 
-    RETURN_TYPES = ("STRING", "STRING", "STRING", "IMAGE")
-    RETURN_NAMES = ("scene_1", "scene_2", "scene_3", "storyboard")
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "IMAGE", "STRING")
+    RETURN_NAMES = ("scene_1", "scene_2", "scene_3", "storyboard", "extracted_constants")
     FUNCTION = "create_storyboard"
     CATEGORY = "FairyTaler/Storyboard"
 
@@ -489,11 +580,19 @@ class FairyTalerStoryboard:
             for i, paragraph in enumerate(paragraphs[:3]):
                 scenes[i] = paragraph
 
-        # Apply scene constants if provided (reuse the logic from SceneParser)
-        if scene_constants and scene_constants.strip():
-            scenes = self._apply_scene_constants(scenes, scene_constants.strip(), constants_position, constants_format, debug)
+        # Extract constants from LLM output (reuse the logic from SceneParser)
+        extracted_constants = self._extract_constants_from_text(ollama_text, debug)
+
+        # Use extracted constants if no manual constants provided, otherwise use manual ones
+        final_constants = scene_constants.strip() if scene_constants and scene_constants.strip() else extracted_constants
+
+        # Apply scene constants if available
+        if final_constants:
+            scenes = self._apply_scene_constants(scenes, final_constants, constants_position, constants_format, debug)
 
         if debug == "enable":
+            print(f"[FairyTalerStoryboard] Extracted constants: {extracted_constants}")
+            print(f"[FairyTalerStoryboard] Final constants used: {final_constants}")
             print(f"[FairyTalerStoryboard] Final scenes with constants applied:")
             for i, scene in enumerate(scenes):
                 print(f"Scene {i+1}: {scene[:100]}...")
@@ -608,7 +707,7 @@ class FairyTalerStoryboard:
             storyboard_array = np.array(storyboard).astype(np.float32) / 255.0
             storyboard_tensor = torch.from_numpy(storyboard_array).unsqueeze(0)
 
-        return (scenes[0], scenes[1], scenes[2], storyboard_tensor)
+        return (scenes[0], scenes[1], scenes[2], storyboard_tensor, extracted_constants)
 
     def _apply_scene_constants(self, scenes, constants, position, format_type, debug):
         """Apply scene constants to each scene based on the specified format and position"""
@@ -652,6 +751,89 @@ class FairyTalerStoryboard:
                 print(f"[FairyTalerStoryboard] Enhanced scene {i+1}: {enhanced_scene[:100]}...")
 
         return enhanced_scenes
+
+    def _extract_constants_from_text(self, text, debug):
+        """Extract suggested constants from LLM output using various patterns"""
+
+        if debug == "enable":
+            print(f"[FairyTalerStoryboard] Extracting constants from LLM text...")
+
+        # Patterns to look for constants in the LLM output
+        constant_patterns = [
+            # Direct patterns
+            r"Constants?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"Scene Constants?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"Character Constants?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"Setting Constants?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"Consistent Elements?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"Shared Details?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+
+            # Descriptive patterns
+            r"(?:For consistency|To maintain consistency|Consistent across all scenes?):\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"(?:Character|Setting|Style) (?:description|details?):\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+            r"(?:Overall|General) (?:setting|character|aesthetic):\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+
+            # Bullet point patterns
+            r"[•\-\*]\s*(?:Character|Setting|Style|Constants?):\s*(.*?)(?:\n|\n\n|$)",
+
+            # Parenthetical patterns
+            r"\((?:Constants?|Consistent elements?|For all scenes?):\s*(.*?)\)",
+
+            # Note patterns
+            r"Note:\s*(?:.*?(?:constant|consistent|throughout|all scenes)).*?:\s*(.*?)(?:\n\n|\nScene|\n[A-Z]|$)",
+        ]
+
+        extracted_constants = ""
+
+        for pattern in constant_patterns:
+            matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
+            if matches:
+                # Take the first match and clean it up
+                constants = matches[0].strip()
+                # Remove extra whitespace and newlines
+                constants = re.sub(r'\s+', ' ', constants)
+                # Remove trailing punctuation that might interfere
+                constants = re.sub(r'[.!?]+$', '', constants)
+
+                if constants and len(constants) > 10:  # Ensure it's substantial
+                    extracted_constants = constants
+                    if debug == "enable":
+                        print(f"[FairyTalerStoryboard] Found constants with pattern: {pattern[:50]}...")
+                        print(f"[FairyTalerStoryboard] Extracted: {constants}")
+                    break
+
+        # Fallback: Look for character descriptions in the first scene
+        if not extracted_constants:
+            # Try to extract character/setting info from the first scene
+            scene_pattern = r"Scene\s*1:\s*(.*?)(?=Scene\s*2:|$)"
+            scene_match = re.search(scene_pattern, text, re.DOTALL | re.IGNORECASE)
+
+            if scene_match:
+                first_scene = scene_match.group(1).strip()
+                # Look for descriptive elements that could be constants
+                descriptive_patterns = [
+                    r"(\d+\s+(?:girl|boy|woman|man|person)[^.]*?(?:years?\s+old|looking|appearance)[^.]*?)",
+                    r"((?:at|in)\s+(?:a|the)\s+[^.]*?(?:cabin|house|building|location)[^.]*?)",
+                    r"([^.]*?(?:aesthetic|style|mood|atmosphere)[^.]*?)",
+                ]
+
+                potential_constants = []
+                for pattern in descriptive_patterns:
+                    matches = re.findall(pattern, first_scene, re.IGNORECASE)
+                    potential_constants.extend(matches)
+
+                if potential_constants:
+                    extracted_constants = ", ".join(potential_constants[:3])  # Take first 3 elements
+                    if debug == "enable":
+                        print(f"[FairyTalerStoryboard] Fallback extraction from first scene: {extracted_constants}")
+
+        if debug == "enable":
+            if extracted_constants:
+                print(f"[FairyTalerStoryboard] Successfully extracted constants: {extracted_constants}")
+            else:
+                print(f"[FairyTalerStoryboard] No constants found in LLM output")
+
+        return extracted_constants
 
 
 # Node mappings for ComfyUI
