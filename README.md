@@ -14,6 +14,10 @@ This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama
 3. You can use it without silly tavern if you want just need to input your own %prompt%
 4. You can swap models too, this whole process is somewhat heavy because it requires flux for its text understanding.
 
+## Output
+- Should look like this. Its still not perfect, we need a model better at understanding NLP. Make sure you put realistic in the constants or it will do whatever it wants.
+- ![image](https://github.com/user-attachments/assets/bec75b33-b485-4eed-b529-e76ad66a7d82)
+
 ## Nodes
 
 ### 1. SceneParser
