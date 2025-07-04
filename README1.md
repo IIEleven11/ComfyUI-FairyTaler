@@ -4,7 +4,7 @@ This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama
 
 ## Installation
 
-1. Copy the `storyboard_nodes.py` and `__init__.py` files to your ComfyUI custom nodes directory
+1. git clone this in your custom_nodes folder ``` git clone https://github.com/IIEleven11/ComfyUI-FairyTaler.git ```
 2. Restart ComfyUI
 3. The nodes will appear under the "FairyTaler/Storyboard" category
 
@@ -61,7 +61,7 @@ This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama
 **Outputs**:
 - `storyboard` (IMAGE): Combined storyboard image
 
-### 5. FairyTalerStoryboard (All-in-One)
+~5. FairyTalerStoryboard (All-in-One)~ **BROKEN**
 **Purpose**: Complete storyboard creation from Ollama text
 
 **Inputs**:
