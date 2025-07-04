@@ -1,7 +1,6 @@
 # FairyTaler Storyboard Nodes
 
-This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama text output.
-
+Custom nodes that will take your conversation and turn it into 3 consecutive scenes. Meant to be used with SillyTavern but it works as a standalone too.
 ## Installation
 
 1. git clone this in your custom_nodes folder ``` git clone https://github.com/IIEleven11/ComfyUI-FairyTaler.git ```
