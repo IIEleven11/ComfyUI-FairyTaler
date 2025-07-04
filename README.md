@@ -8,6 +8,12 @@ This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama
 2. Restart ComfyUI
 3. The nodes will appear under the "FairyTaler/Storyboard" category
 
+## Use Case
+1. I have an example workflow in this repo. load that up.
+2. It's setup to work with silly tavern. just get the image generation extension and upload this workflow to it.
+3. You can use it without silly tavern if you want just need to input your own %prompt%
+4. You can swap models too, this whole process is somewhat heavy because it requires flux for its text understanding.
+
 ## Nodes
 
 ### 1. SceneParser
