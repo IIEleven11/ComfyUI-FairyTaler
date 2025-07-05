@@ -26,7 +26,7 @@ class SceneParser:
                 "scene_constants": ("STRING", {
                     "multiline": True,
                     "default": "",
-                    "placeholder": "e.g., 1 girl around 25 years old, homeless looking, at a cabin in the woods, gloomy and country aesthetic"
+                    "placeholder": "e.g., 1kombat wombat, super ninja skillz, sick and xtreme asthetic"
                 }),
                 "constants_position": (["beginning", "end", "both"],),
                 "constants_format": (["natural", "tags", "descriptive"],),

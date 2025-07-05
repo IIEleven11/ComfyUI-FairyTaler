@@ -16,9 +16,13 @@ This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama
 **Inputs**:
 - `ollama_text` (STRING): The text output from an Ollama Generate node
 - `debug` (enable/disable): Enable debug printing
+- `scene_constants` (STRING, optional): Consistent character/setting details to add to each scene
+- `constants_position` (beginning/end/both): Where to place the constants in each scene
+- `constants_format` (natural/tags/descriptive): How to format the constants
 
 **Outputs**:
-- `scene_1`, `scene_2`, `scene_3` (STRING): Individual scene descriptions
+- `scene_1`, `scene_2`, `scene_3` (STRING): Individual scene descriptions with constants applied
+- `extracted_constants` (STRING): Constants automatically extracted from LLM output
 
 ### 2. SceneToConditioning
 **Purpose**: Converts scene text to CLIP conditioning for use with sampling nodes
@@ -64,16 +68,70 @@ This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama
 - `ollama_text` (STRING): The text output from an Ollama Generate node
 - Layout and styling options (same as StoryboardCompositor)
 - `image_1`, `image_2`, `image_3` (IMAGE, optional): If provided, creates visual storyboard
+- `scene_constants` (STRING, optional): Consistent character/setting details
+- `constants_position` (beginning/end/both): Where to place the constants
+- `constants_format` (natural/tags/descriptive): How to format the constants
 
 **Outputs**:
-- `scene_1`, `scene_2`, `scene_3` (STRING): Parsed scene descriptions
+- `scene_1`, `scene_2`, `scene_3` (STRING): Parsed scene descriptions with constants
 - `storyboard` (IMAGE): Combined storyboard (visual if images provided, text-based if not)
+- `extracted_constants` (STRING): Constants automatically extracted from LLM output
+
+## Scene Constants Feature
+
+The **Scene Constants** feature ensures character and setting consistency across all three scenes by automatically adding specified details to each scene description.
+
+### 🤖 Automatic Constant Extraction (NEW!)
+
+The nodes now automatically extract constants from LLM output! Simply ask your LLM to include constants in its response using any of these formats:
+
+**Supported Formats:**
+- `Constants: [your constants here]`
+- `Scene Constants: [your constants here]`
+- `Character Description: [your constants here]`
+- `For consistency across all scenes: [your constants here]`
+- Bullet points with `• Character:`, `• Setting:`, etc.
+- `Note: For consistency throughout all scenes, maintain: [your constants here]`
+
+**Example LLM Prompt:**
+```
+"Transform this roleplay text into 3 scenes for a storyboard. Also provide scene constants for character and setting consistency.
+
+Constants: 1 girl around 25 years old, homeless looking, at a cabin in the woods, gloomy and country aesthetic
+
+Scene 1: [scene description]
+Scene 2: [scene description]
+Scene 3: [scene description]"
+```
+
+### Manual Constants (Fallback)
+
+### Example Usage:
+- **Scene Constants**: `"1 girl around 25 years old, homeless looking, at a cabin in the woods, gloomy and country aesthetic"`
+- **Position**: `beginning` - Adds constants at the start of each scene
+- **Format**: `natural` - Adds proper punctuation for natural flow
+
+### Position Options:
+- **beginning**: Constants appear at the start of each scene
+- **end**: Constants appear at the end of each scene  
+- **both**: Constants appear at both beginning and end (for maximum consistency)
+
+### Format Options:
+- **natural**: Adds commas/periods for natural sentence flow
+- **tags**: Raw format without additional punctuation
+- **descriptive**: Formats as complete sentences with periods
+
+### Example Results:
+**Original Scene**: `"A girl sits on the front steps slaughtering time."`
+
+**With Constants** (beginning, natural): 
+`"1 girl around 25 years old, homeless looking, at a cabin in the woods, gloomy and country aesthetic, A girl sits on the front steps slaughtering time."`
 
 ## Example Workflow
 
 ### Basic Workflow:
 1. **Ollama Generate** → `ollama_text`
-2. **SceneParser** → `scene_1`, `scene_2`, `scene_3`
+2. **SceneParser** (with scene_constants) → `scene_1`, `scene_2`, `scene_3`
 3. **CLIP Text Encode** (3x) → `conditioning_1`, `conditioning_2`, `conditioning_3`
 4. **KSampler** (3x) → `latent_1`, `latent_2`, `latent_3`
 5. **VAE Decode** (3x) → `image_1`, `image_2`, `image_3`
@@ -81,34 +139,17 @@ This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama
 
 ### Simplified Workflow:
 1. **Ollama Generate** → `ollama_text`
-2. **FairyTalerStoryboard** → `scene_1`, `scene_2`, `scene_3`, `storyboard`
+2. **FairyTalerStoryboard** (with scene_constants) → `scene_1`, `scene_2`, `scene_3`, `storyboard`
 3. Use the scene descriptions with your preferred image generation workflow
 4. Connect the generated images back to **FairyTalerStoryboard** for final composition
-
-## Example Input/Output
-
-### Input (from Ollama):
-```
-Scene 1:
-A girl sits on the front steps of a cabin, lost in thought. A car pulls up to the cabin and parks nearby...
-
-Scene 2:
-The girl continues to work on her homespun as the crows scatter from the sagging eaves...
-
-Scene 3:
-The girl introduces herself as "Stranger" and explains that she is in these parts without cause...
-```
-
-### Output:
-- Three separate scene descriptions for image generation
-- A combined storyboard image with all three scenes arranged according to your layout preference
 
 ## Tips
 
 1. **For best results**: Use the individual nodes for maximum control over the image generation process
 2. **For quick testing**: Use the FairyTalerStoryboard all-in-one node
-3. **Layout options**: 
+3. **Scene Constants**: Essential for character consistency - include age, appearance, setting, and style
+4. **Layout options**: 
    - Vertical: Scenes stacked top to bottom
    - Horizontal: Scenes side by side
    - Grid: 2x2 layout with 3 scenes
-4. **Debug mode**: Enable to see parsing details and troubleshoot issues
+5. **Debug mode**: Enable to see parsing details and troubleshoot issues
