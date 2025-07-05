@@ -1,5 +1,8 @@
 """
-ComfyUI FairyTaler Storyboard Nodes
+@author: Eleven
+@title: ComfyUI FairyTaler Storyboard Nodes
+@nickname: ComfyUI FairyTaler
+@description: Turn your AI roleplay into AI generated scenes from every response. Visualize what you read!
 
 This package provides nodes for creating storyboards from Ollama text output.
 
@@ -15,7 +18,7 @@ Usage:
 2. Use the scene descriptions with image generation nodes
 3. Combine the generated images with StoryboardCompositor
 """
-
+from .storyboard_nodes import NODE_CLASS_MAPPINGS
 try:
     from .storyboard_nodes import (
         SceneParser,
