@@ -2,7 +2,6 @@ import re
 import torch
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-import io
 
 
 class SceneParser:
@@ -13,7 +12,7 @@ class SceneParser:
         pass
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "ollama_text": ("STRING", {
@@ -211,7 +210,7 @@ class SceneToConditioning:
         pass
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "scene_text": ("STRING", {
@@ -253,7 +252,7 @@ class ThreeSceneGenerator:
         pass
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "scene_1": ("STRING", {
@@ -357,7 +356,7 @@ class StoryboardCompositor:
         pass
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "image_1": ("IMAGE",),
@@ -488,7 +487,7 @@ class FairyTalerStoryboard:
         pass
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "ollama_text": ("STRING", {
@@ -791,19 +790,3 @@ class FairyTalerStoryboard:
         return extracted_constants
 
 
-
-NODE_CLASS_MAPPINGS = {
-    "SceneParser": SceneParser,
-    "SceneToConditioning": SceneToConditioning,
-    "ThreeSceneGenerator": ThreeSceneGenerator,
-    "StoryboardCompositor": StoryboardCompositor,
-    "FairyTalerStoryboard": FairyTalerStoryboard,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "SceneParser": "Scene Parser",
-    "SceneToConditioning": "Scene to Conditioning",
-    "ThreeSceneGenerator": "Three Scene Generator",
-    "StoryboardCompositor": "Storyboard Compositor",
-    "FairyTalerStoryboard": "FairyTaler Storyboard",
-}
