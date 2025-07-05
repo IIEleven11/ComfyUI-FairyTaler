@@ -790,3 +790,10 @@ class FairyTalerStoryboard:
         return extracted_constants
 
 
+NODE_CLASS_MAPPINGS = {
+    "Scene Parser (FairyTaler)": SceneParser,
+    "Scene to Conditioning (FairyTaler)": SceneToConditioning,
+    "Three Scene Generator (FairyTaler)": ThreeSceneGenerator,
+    "Storyboard Compositor (FairyTaler)": StoryboardCompositor,
+    "FairyTaler Storyboard": FairyTalerStoryboard,
+}
