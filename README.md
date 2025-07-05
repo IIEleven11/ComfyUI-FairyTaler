@@ -1,12 +1,21 @@
 # FairyTaler Storyboard Nodes
 
-This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama text output.
-
+Custom nodes that will take your conversation and turn it into 3 consecutive scenes. Meant to be used with SillyTavern but it works as a standalone too.
 ## Installation
 
-1. Copy the `storyboard_nodes.py` and `__init__.py` files to your ComfyUI custom nodes directory
+1. git clone this in your custom_nodes folder ``` git clone https://github.com/IIEleven11/ComfyUI-FairyTaler.git ```
 2. Restart ComfyUI
 3. The nodes will appear under the "FairyTaler/Storyboard" category
+
+## Use Case
+1. I have an example workflow in this repo. load that up.
+2. It's setup to work with silly tavern. just get the image generation extension and upload this workflow to it.
+3. You can use it without silly tavern if you want just need to input your own %prompt%
+4. You can swap models too, this whole process is somewhat heavy because it requires flux for its text understanding.
+
+## Output
+- Should look like this. Its still not perfect, we need a model better at understanding NLP. Make sure you put realistic in the constants or it will do whatever it wants.
+- ![image](https://github.com/user-attachments/assets/bec75b33-b485-4eed-b529-e76ad66a7d82)
 
 ## Nodes
 
@@ -61,7 +70,7 @@ This package provides ComfyUI nodes for creating 3-scene storyboards from Ollama
 **Outputs**:
 - `storyboard` (IMAGE): Combined storyboard image
 
-### 5. FairyTalerStoryboard (All-in-One)
+~5. FairyTalerStoryboard (All-in-One)~ **BROKEN**
 **Purpose**: Complete storyboard creation from Ollama text
 
 **Inputs**:

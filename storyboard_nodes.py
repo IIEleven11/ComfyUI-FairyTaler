@@ -57,7 +57,6 @@ class SceneParser:
             if 0 <= scene_num < 3:
                 scenes[scene_num] = match[1].strip()
 
-        # Fallback: if regex doesn't work, try splitting by "Scene" keyword
         if not any(scenes):
             parts = re.split(r'Scene\s*\d+:', ollama_text, flags=re.IGNORECASE)
             if len(parts) > 1:
@@ -65,7 +64,6 @@ class SceneParser:
                     if i < 3:
                         scenes[i] = part.strip()
 
-        # Final fallback: split by paragraphs if still empty
         if not any(scenes):
             paragraphs = [p.strip() for p in ollama_text.split('\n\n') if p.strip()]
             for i, paragraph in enumerate(paragraphs[:3]):
@@ -74,10 +72,8 @@ class SceneParser:
         # Extract constants from LLM output
         extracted_constants = self._extract_constants_from_text(ollama_text, debug)
 
-        # Use extracted constants if no manual constants provided, otherwise use manual ones
         final_constants = scene_constants.strip() if scene_constants and scene_constants.strip() else extracted_constants
 
-        # Apply scene constants if available
         if final_constants:
             scenes = self._apply_scene_constants(scenes, final_constants, constants_position, constants_format, debug)
 
@@ -96,26 +92,21 @@ class SceneParser:
         if debug == "enable":
             print(f"[SceneParser] Applying constants in {format_type} format at {position}")
 
-        # Format the constants based on the selected format
         if format_type == "tags":
-            # Format as comma-separated tags
             formatted_constants = constants
         elif format_type == "descriptive":
-            # Format as a descriptive sentence
             if not constants.endswith('.'):
                 formatted_constants = constants + "."
             else:
                 formatted_constants = constants
-        else:  # natural
-            # Use as-is but ensure proper punctuation
+        else:
             formatted_constants = constants
             if not constants.endswith(('.', ',', ';')):
                 formatted_constants = constants + ","
 
-        # Apply constants to each scene
         enhanced_scenes = []
         for i, scene in enumerate(scenes):
-            if not scene:  # Skip empty scenes
+            if not scene:
                 enhanced_scenes.append(scene)
                 continue
 
@@ -171,27 +162,22 @@ class SceneParser:
             if matches:
                 # Take the first match and clean it up
                 constants = matches[0].strip()
-                # Remove extra whitespace and newlines
                 constants = re.sub(r'\s+', ' ', constants)
-                # Remove trailing punctuation that might interfere
                 constants = re.sub(r'[.!?]+$', '', constants)
 
-                if constants and len(constants) > 10:  # Ensure it's substantial
+                if constants and len(constants) > 10:
                     extracted_constants = constants
                     if debug == "enable":
                         print(f"[SceneParser] Found constants with pattern: {pattern[:50]}...")
                         print(f"[SceneParser] Extracted: {constants}")
                     break
 
-        # Fallback: Look for character descriptions in the first scene
         if not extracted_constants:
-            # Try to extract character/setting info from the first scene
             scene_pattern = r"Scene\s*1:\s*(.*?)(?=Scene\s*2:|$)"
             scene_match = re.search(scene_pattern, text, re.DOTALL | re.IGNORECASE)
 
             if scene_match:
                 first_scene = scene_match.group(1).strip()
-                # Look for descriptive elements that could be constants
                 descriptive_patterns = [
                     r"(\d+\s+(?:girl|boy|woman|man|person)[^.]*?(?:years?\s+old|looking|appearance)[^.]*?)",
                     r"((?:at|in)\s+(?:a|the)\s+[^.]*?(?:cabin|house|building|location)[^.]*?)",
@@ -204,7 +190,7 @@ class SceneParser:
                     potential_constants.extend(matches)
 
                 if potential_constants:
-                    extracted_constants = ", ".join(potential_constants[:3])  # Take first 3 elements
+                    extracted_constants = ", ".join(potential_constants[:3])
                     if debug == "enable":
                         print(f"[SceneParser] Fallback extraction from first scene: {extracted_constants}")
 
@@ -336,8 +322,6 @@ class ThreeSceneGenerator:
             print(f"[ThreeSceneGenerator] This node outputs conditioning for use with sampling nodes.")
             print(f"[ThreeSceneGenerator] For actual image generation, connect the conditioning outputs to KSampler nodes.")
 
-        # This is a simplified version that outputs conditioning
-        # In practice, users should connect these to KSampler and VAEDecode nodes
         scenes = [scene_1, scene_2, scene_3]
         conditionings = []
 
@@ -351,13 +335,10 @@ class ThreeSceneGenerator:
             conditioning = [[cond, {"pooled_output": pooled}]]
             conditionings.append(conditioning)
 
-        # For now, return placeholder images - users should use proper sampling workflow
-        # Create simple colored placeholder images to show the concept works
-        placeholder_images = []
-        colors = [(255, 100, 100), (100, 255, 100), (100, 100, 255)]  # Red, Green, Blue
+        placeholder_images = [] #REplace this shit
+        colors = [(255, 100, 100), (100, 255, 100), (100, 100, 255)]
 
         for i, color in enumerate(colors):
-            # Create a simple colored image as placeholder
             img_array = np.full((height, width, 3), color, dtype=np.uint8)
             img_tensor = torch.from_numpy(img_array.astype(np.float32) / 255.0).unsqueeze(0)
             placeholder_images.append(img_tensor)
@@ -421,22 +402,21 @@ class StoryboardCompositor:
             return Image.fromarray(np_image)
         
         pil_images = [tensor_to_pil(img) for img in [image_1, image_2, image_3]]
-        
-        # Get dimensions
+
         img_width, img_height = pil_images[0].size
         
-        # Calculate storyboard dimensions based on layout
+        # Calculate storyboard dimensions
         if layout == "vertical":
             board_width = img_width
             board_height = img_height * 3 + spacing * 2
         elif layout == "horizontal":
             board_width = img_width * 3 + spacing * 2
             board_height = img_height
-        else:  # grid (2x2 with 3 images)
+        else:
             board_width = img_width * 2 + spacing
             board_height = img_height * 2 + spacing
         
-        # Add space for labels if enabled
+        # Add space for labels
         label_height = 30 if add_labels == "enable" else 0
         if layout == "vertical":
             board_height += label_height * 3
@@ -445,10 +425,8 @@ class StoryboardCompositor:
         else:  # grid
             board_height += label_height * 2
         
-        # Create the storyboard canvas
         storyboard = Image.new('RGB', (board_width, board_height), background_color)
         
-        # Position images based on layout
         positions = []
         if layout == "vertical":
             positions = [
@@ -462,18 +440,16 @@ class StoryboardCompositor:
                 (img_width + spacing, label_height),
                 ((img_width + spacing) * 2, label_height)
             ]
-        else:  # grid
+        else:
             positions = [
                 (0, label_height),
                 (img_width + spacing, label_height),
                 (0, img_height + spacing + label_height * 2)
             ]
         
-        # Paste images
         for i, (img, pos) in enumerate(zip(pil_images, positions)):
             storyboard.paste(img, pos)
             
-            # Add labels if enabled
             if add_labels == "enable":
                 draw = ImageDraw.Draw(storyboard)
                 try:
@@ -496,7 +472,7 @@ class StoryboardCompositor:
         
         # Convert back to tensor format
         storyboard_array = np.array(storyboard).astype(np.float32) / 255.0
-        storyboard_tensor = torch.from_numpy(storyboard_array).unsqueeze(0)  # Add batch dimension
+        storyboard_tensor = torch.from_numpy(storyboard_array).unsqueeze(0)
         
         if debug == "enable":
             print(f"[StoryboardCompositor] Created storyboard with dimensions: {storyboard.size}")
@@ -555,7 +531,7 @@ class FairyTalerStoryboard:
         if debug == "enable":
             print(f"[FairyTalerStoryboard] Creating complete storyboard from Ollama text")
 
-        # Parse scenes using the same logic as SceneParser
+        # Parse scene
         scene_pattern = r"Scene\s*(\d+):\s*(.*?)(?=Scene\s*\d+:|$)"
         matches = re.findall(scene_pattern, ollama_text, re.DOTALL | re.IGNORECASE)
 
@@ -574,19 +550,15 @@ class FairyTalerStoryboard:
                     if i < 3:
                         scenes[i] = part.strip()
 
-        # Final fallback: split by paragraphs if still empty
         if not any(scenes):
             paragraphs = [p.strip() for p in ollama_text.split('\n\n') if p.strip()]
             for i, paragraph in enumerate(paragraphs[:3]):
                 scenes[i] = paragraph
 
-        # Extract constants from LLM output (reuse the logic from SceneParser)
         extracted_constants = self._extract_constants_from_text(ollama_text, debug)
 
-        # Use extracted constants if no manual constants provided, otherwise use manual ones
         final_constants = scene_constants.strip() if scene_constants and scene_constants.strip() else extracted_constants
 
-        # Apply scene constants if available
         if final_constants:
             scenes = self._apply_scene_constants(scenes, final_constants, constants_position, constants_format, debug)
 
@@ -597,12 +569,11 @@ class FairyTalerStoryboard:
             for i, scene in enumerate(scenes):
                 print(f"Scene {i+1}: {scene[:100]}...")
 
-        # If images are provided, create storyboard; otherwise just return scenes
         if image_1 is not None and image_2 is not None and image_3 is not None:
-            # Use the same logic as StoryboardCompositor
+ 
             def tensor_to_pil(tensor):
                 if len(tensor.shape) == 4:
-                    tensor = tensor[0]  # Remove batch dimension
+                    tensor = tensor[0] 
 
                 if tensor.dtype == torch.float32:
                     tensor = (tensor * 255).clamp(0, 255).byte()
@@ -612,21 +583,19 @@ class FairyTalerStoryboard:
 
             pil_images = [tensor_to_pil(img) for img in [image_1, image_2, image_3]]
 
-            # Get dimensions
             img_width, img_height = pil_images[0].size
 
-            # Calculate storyboard dimensions based on layout
+
             if layout == "vertical":
                 board_width = img_width
                 board_height = img_height * 3 + spacing * 2
             elif layout == "horizontal":
                 board_width = img_width * 3 + spacing * 2
                 board_height = img_height
-            else:  # grid (2x2 with 3 images)
+            else: 
                 board_width = img_width * 2 + spacing
                 board_height = img_height * 2 + spacing
 
-            # Add space for labels if enabled
             label_height = 30 if add_labels == "enable" else 0
             if layout == "vertical":
                 board_height += label_height * 3
@@ -638,7 +607,6 @@ class FairyTalerStoryboard:
             # Create the storyboard canvas
             storyboard = Image.new('RGB', (board_width, board_height), background_color)
 
-            # Position images based on layout
             positions = []
             if layout == "vertical":
                 positions = [
@@ -652,18 +620,16 @@ class FairyTalerStoryboard:
                     (img_width + spacing, label_height),
                     ((img_width + spacing) * 2, label_height)
                 ]
-            else:  # grid
+            else: 
                 positions = [
                     (0, label_height),
                     (img_width + spacing, label_height),
                     (0, img_height + spacing + label_height * 2)
                 ]
 
-            # Paste images
             for i, (img, pos) in enumerate(zip(pil_images, positions)):
                 storyboard.paste(img, pos)
 
-                # Add labels if enabled
                 if add_labels == "enable":
                     draw = ImageDraw.Draw(storyboard)
                     try:
@@ -676,7 +642,7 @@ class FairyTalerStoryboard:
                         label_pos = (5, pos[1] - 25)
                     elif layout == "horizontal":
                         label_pos = (pos[0] + 5, 5)
-                    else:  # grid
+                    else:
                         if i < 2:
                             label_pos = (pos[0] + 5, 5)
                         else:
@@ -684,14 +650,13 @@ class FairyTalerStoryboard:
 
                     draw.text(label_pos, label_text, fill="black", font=font)
 
-            # Convert back to tensor format
+
             storyboard_array = np.array(storyboard).astype(np.float32) / 255.0
             storyboard_tensor = torch.from_numpy(storyboard_array).unsqueeze(0)  # Add batch dimension
 
             if debug == "enable":
                 print(f"[FairyTalerStoryboard] Created storyboard with dimensions: {storyboard.size}")
         else:
-            # Create a placeholder storyboard with text
             storyboard = Image.new('RGB', (800, 600), background_color)
             draw = ImageDraw.Draw(storyboard)
             try:
@@ -715,26 +680,20 @@ class FairyTalerStoryboard:
         if debug == "enable":
             print(f"[FairyTalerStoryboard] Applying constants in {format_type} format at {position}")
 
-        # Format the constants based on the selected format
         if format_type == "tags":
-            # Format as comma-separated tags
             formatted_constants = constants
         elif format_type == "descriptive":
-            # Format as a descriptive sentence
             if not constants.endswith('.'):
                 formatted_constants = constants + "."
             else:
                 formatted_constants = constants
-        else:  # natural
-            # Use as-is but ensure proper punctuation
+        else:
             formatted_constants = constants
             if not constants.endswith(('.', ',', ';')):
                 formatted_constants = constants + ","
-
-        # Apply constants to each scene
         enhanced_scenes = []
         for i, scene in enumerate(scenes):
-            if not scene:  # Skip empty scenes
+            if not scene:
                 enhanced_scenes.append(scene)
                 continue
 
@@ -742,7 +701,7 @@ class FairyTalerStoryboard:
                 enhanced_scene = f"{formatted_constants} {scene}"
             elif position == "end":
                 enhanced_scene = f"{scene} {formatted_constants}"
-            else:  # both
+            else: 
                 enhanced_scene = f"{formatted_constants} {scene} {formatted_constants}"
 
             enhanced_scenes.append(enhanced_scene)
@@ -751,7 +710,7 @@ class FairyTalerStoryboard:
                 print(f"[FairyTalerStoryboard] Enhanced scene {i+1}: {enhanced_scene[:100]}...")
 
         return enhanced_scenes
-
+    # De-Dupe?
     def _extract_constants_from_text(self, text, debug):
         """Extract suggested constants from LLM output using various patterns"""
 
@@ -788,9 +747,7 @@ class FairyTalerStoryboard:
         for pattern in constant_patterns:
             matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
             if matches:
-                # Take the first match and clean it up
                 constants = matches[0].strip()
-                # Remove extra whitespace and newlines
                 constants = re.sub(r'\s+', ' ', constants)
                 # Remove trailing punctuation that might interfere
                 constants = re.sub(r'[.!?]+$', '', constants)
@@ -804,13 +761,11 @@ class FairyTalerStoryboard:
 
         # Fallback: Look for character descriptions in the first scene
         if not extracted_constants:
-            # Try to extract character/setting info from the first scene
             scene_pattern = r"Scene\s*1:\s*(.*?)(?=Scene\s*2:|$)"
             scene_match = re.search(scene_pattern, text, re.DOTALL | re.IGNORECASE)
 
             if scene_match:
                 first_scene = scene_match.group(1).strip()
-                # Look for descriptive elements that could be constants
                 descriptive_patterns = [
                     r"(\d+\s+(?:girl|boy|woman|man|person)[^.]*?(?:years?\s+old|looking|appearance)[^.]*?)",
                     r"((?:at|in)\s+(?:a|the)\s+[^.]*?(?:cabin|house|building|location)[^.]*?)",
@@ -836,7 +791,7 @@ class FairyTalerStoryboard:
         return extracted_constants
 
 
-# Node mappings for ComfyUI
+
 NODE_CLASS_MAPPINGS = {
     "SceneParser": SceneParser,
     "SceneToConditioning": SceneToConditioning,
