@@ -7,15 +7,6 @@ Custom nodes that will take your conversation and turn it into 3 consecutive sce
 2. Restart ComfyUI
 3. The nodes will appear under the "FairyTaler/Storyboard" category
 
-## Node Registration Status ✅
-
-The custom nodes are now properly configured for ComfyUI registration:
-- ✅ `__init__.py` contains proper NODE_CLASS_MAPPINGS and NODE_DISPLAY_NAME_MAPPINGS
-- ✅ All node classes have required ComfyUI attributes (CATEGORY, INPUT_TYPES, RETURN_TYPES, FUNCTION)
-- ✅ Proper import structure with fallback for different execution contexts
-- ✅ All 5 nodes should register correctly: SceneParser, SceneToConditioning, ThreeSceneGenerator, StoryboardCompositor, FairyTalerStoryboard
-
-To verify installation, run: `python test_registration.py` from the ComfyUI-FairyTaler directory.
 
 ## Use Case
 1. I have an example workflow in this repo. load that up.
