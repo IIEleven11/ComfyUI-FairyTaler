@@ -791,9 +791,17 @@ class FairyTalerStoryboard:
 
 
 NODE_CLASS_MAPPINGS = {
-    "Scene Parser (FairyTaler)": SceneParser,
-    "Scene to Conditioning (FairyTaler)": SceneToConditioning,
-    "Three Scene Generator (FairyTaler)": ThreeSceneGenerator,
-    "Storyboard Compositor (FairyTaler)": StoryboardCompositor,
-    "FairyTaler Storyboard": FairyTalerStoryboard,
+    "SceneParser": SceneParser,
+    "SceneToConditioning": SceneToConditioning,
+    "ThreeSceneGenerator": ThreeSceneGenerator,
+    "StoryboardCompositor": StoryboardCompositor,
+    "FairyTalerStoryboard": FairyTalerStoryboard,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "SceneParser": "Scene Parser",
+    "SceneToConditioning": "Scene to Conditioning",
+    "ThreeSceneGenerator": "Three Scene Generator",
+    "StoryboardCompositor": "Storyboard Compositor",
+    "FairyTalerStoryboard": "FairyTaler Storyboard",
 }
